@@ -42,7 +42,12 @@ export default {
     },
     fieldId: {
       type: String,
-      required: true
+      required: false
+    },
+    selectedAttachmentFields: {
+      type: Array,
+      required: true,
+      default: () => []
     }
   },
   setup(props) {
@@ -58,6 +63,7 @@ export default {
     const batchUploadCurrent = ref(0);
     const showBatchUploadDialog = ref(false);
     const refreshing = ref(false);
+    const attachmentFields = ref([]);
 
     // 计算未拍照的记录数量
     const pendingRecordsCount = computed(() => {
@@ -66,10 +72,20 @@ export default {
 
     // 计算已拍照但未上传的记录数量
     const capturedButNotUploadedCount = computed(() => {
-      return Object.keys(capturedImages.value).filter(recordId => {
+      let count = 0;
+      
+      for (const recordId in capturedImages.value) {
         const record = records.value.find(r => r.id === recordId);
-        return record && !record.hasPhoto;
-      }).length;
+        if (!record) continue;
+        
+        for (const fieldId in capturedImages.value[recordId]) {
+          if (!record.attachmentStatus[fieldId]) {
+            count++;
+          }
+        }
+      }
+      
+      return count;
     });
 
     // 加载字段列表
@@ -81,9 +97,15 @@ export default {
         const fields = await table.getFieldMetaList();
         allFields.value = fields;
         
-        // 默认选择前两个字段显示
-        if (fields.length > 0) {
-          selectedDisplayFields.value = fields.slice(0, Math.min(2, fields.length)).map(f => f.id);
+        // 筛选出附件类型的字段
+        attachmentFields.value = fields.filter(field => field.type === 17);
+        
+        // 默认选择前两个非附件字段显示
+        if (fields.length > 0 && selectedDisplayFields.value.length === 0) {
+          const nonAttachmentFields = fields.filter(f => f.type !== 17); // 过滤掉附件字段
+          selectedDisplayFields.value = nonAttachmentFields
+            .slice(0, Math.min(2, nonAttachmentFields.length)) // 最多选前两个
+            .map(f => f.id);
         }
       } catch (error) {
         console.error('加载字段失败:', error);
@@ -92,7 +114,7 @@ export default {
 
     // 加载记录
     const loadRecords = async () => {
-      if (!props.tableId || !props.viewId) return;
+      if (!props.tableId || !props.viewId || props.selectedAttachmentFields.length === 0) return;
       
       loading.value = true;
       try {
@@ -107,17 +129,22 @@ export default {
             recordList.map(async (recordId) => {
               const record = await table.getRecordById(recordId);
 
-              // 检查是否已有附件
-              let hasPhoto = false;
-              if (props.fieldId && record.fields[props.fieldId]) {
-                const attachments = record.fields[props.fieldId];
-                hasPhoto = Array.isArray(attachments) && attachments.length > 0;
+              // 检查每个选中的附件字段是否已有附件
+              const attachmentStatus = {};
+              for (const fieldId of props.selectedAttachmentFields) {
+                if (record.fields[fieldId]) {
+                  const attachments = record.fields[fieldId];
+                  attachmentStatus[fieldId] = Array.isArray(attachments) && attachments.length > 0;
+                } else {
+                  attachmentStatus[fieldId] = false;
+                }
               }
 
               return {
                 id: recordId,
                 fields: record.fields,
-                hasPhoto: hasPhoto
+                attachmentStatus: attachmentStatus,
+                hasPhoto: Object.values(attachmentStatus).some(status => status) // 只要有一个附件字段有值就算有照片
               };
             })
         );
@@ -148,9 +175,9 @@ export default {
     };
 
     // 打开摄像头页面
-    const openCameraPage = (recordId) => {
-      // 生成唯一会话ID
-      const sessionId = `${userId.value}_${recordId}`;
+    const openCameraPage = (recordId, fieldId) => {
+      // 生成唯一会话ID，包含字段ID
+      const sessionId = `${userId.value}_${recordId}_${fieldId}`;
       const cameraUrl = `${window.location.origin}${window.location.pathname}#/camera/${sessionId}`;
       window.open(cameraUrl, '_blank');
     };
@@ -180,21 +207,21 @@ export default {
     };
 
     // 保存照片到附件字段
-    const savePhotoToAttachment = async (recordId, imageData) => {
-      if (!props.tableId || !props.fieldId || !recordId) return;
+    const savePhotoToAttachment = async (recordId, fieldId, imageData) => {
+      if (!props.tableId || !fieldId || !recordId) return;
       
       try {
         // 将Base64图片转换为File对象
         const fileName = `photo_${Date.now()}.jpg`;
         const file = base64ToFile(imageData, fileName);
         
-        console.log('开始上传照片', fileName, recordId);
+        console.log('开始上传照片', fileName, recordId, '到字段', fieldId);
         
         // 获取表格和字段
         const table = await bitable.base.getTableById(props.tableId);
         
         // 使用正确的附件字段API
-        const field = await table.getField(props.fieldId);
+        const field = await table.getField(fieldId);
         await field.setValue(recordId, [file]);
         
         console.log('照片已上传到附件字段');
@@ -202,6 +229,7 @@ export default {
         // 更新记录状态
         const recordIndex = records.value.findIndex(r => r.id === recordId);
         if (recordIndex !== -1) {
+          records.value[recordIndex].attachmentStatus[fieldId] = true;
           records.value[recordIndex].hasPhoto = true;
         }
         
@@ -213,17 +241,17 @@ export default {
     };
 
     // 处理文件上传
-    const handleFileUpload = async (file, recordId) => {
-      if (!file || !recordId) return false;
+    const handleFileUpload = async (file, recordId, fieldId) => {
+      if (!file || !recordId || !fieldId) return false;
       
       try {
-        console.log('开始上传文件', file.name, recordId);
+        console.log('开始上传文件', file.name, recordId, '到字段', fieldId);
         
         // 上传到多维表格
         const table = await bitable.base.getTableById(props.tableId);
         
         // 使用正确的附件字段API
-        const field = await table.getField(props.fieldId);
+        const field = await table.getField(fieldId);
         await field.setValue(recordId, [file]);
         
         console.log('文件已上传到附件字段');
@@ -231,13 +259,17 @@ export default {
         // 更新记录状态
         const recordIndex = records.value.findIndex(r => r.id === recordId);
         if (recordIndex !== -1) {
+          records.value[recordIndex].attachmentStatus[fieldId] = true;
           records.value[recordIndex].hasPhoto = true;
         }
         
         // 保存预览图
         const reader = new FileReader();
         reader.onload = (e) => {
-          capturedImages.value[recordId] = e.target.result;
+          if (!capturedImages.value[recordId]) {
+            capturedImages.value[recordId] = {};
+          }
+          capturedImages.value[recordId][fieldId] = e.target.result;
         };
         reader.readAsDataURL(file);
         
@@ -252,40 +284,54 @@ export default {
 
     // 批量上传所有已拍照的照片
     const batchUploadAllPhotos = async () => {
-      // 找出所有已拍照但未上传的记录
-      const recordsToUpload = Object.keys(capturedImages.value).filter(recordId => {
-        const record = records.value.find(r => r.id === recordId);
-        return record && !record.hasPhoto;
-      });
+      // 找出所有已拍照但未上传的记录和字段
+      const uploadsToProcess = [];
       
-      if (recordsToUpload.length === 0) {
+      for (const recordId in capturedImages.value) {
+        for (const fieldId in capturedImages.value[recordId]) {
+          // 仅处理当前选中的附件字段
+          if (props.selectedAttachmentFields.includes(fieldId)) {
+            const record = records.value.find(r => r.id === recordId);
+            if (record && !record.attachmentStatus[fieldId]) {
+              uploadsToProcess.push({
+                recordId,
+                fieldId,
+                imageData: capturedImages.value[recordId][fieldId]
+              });
+            }
+          }
+        }
+      }
+      
+      if (uploadsToProcess.length === 0) {
         ElMessage.info('没有需要上传的照片');
         return;
       }
       
       batchUploading.value = true;
-      batchUploadTotal.value = recordsToUpload.length;
+      batchUploadTotal.value = uploadsToProcess.length;
       batchUploadCurrent.value = 0;
       batchUploadProgress.value = 0;
       showBatchUploadDialog.value = true;
       
       try {
         const table = await bitable.base.getTableById(props.tableId);
-        const field = await table.getField(props.fieldId);
         
-        for (const recordId of recordsToUpload) {
-          const imageData = capturedImages.value[recordId];
+        for (const upload of uploadsToProcess) {
+          const { recordId, fieldId, imageData } = upload;
           
           // 创建文件对象
-          const fileName = `photo_${Date.now()}_${recordId}.jpg`;
+          const fileName = `photo_${Date.now()}_${recordId}_${fieldId}.jpg`;
           const file = base64ToFile(imageData, fileName);
           
           // 使用正确的附件字段API上传
+          const field = await table.getField(fieldId);
           await field.setValue(recordId, [file]);
           
           // 更新记录状态
           const recordIndex = records.value.findIndex(r => r.id === recordId);
           if (recordIndex !== -1) {
+            records.value[recordIndex].attachmentStatus[fieldId] = true;
             records.value[recordIndex].hasPhoto = true;
           }
           
@@ -294,7 +340,7 @@ export default {
           batchUploadProgress.value = Math.floor((batchUploadCurrent.value / batchUploadTotal.value) * 100);
         }
         
-        ElMessage.success(`成功上传 ${recordsToUpload.length} 张照片`);
+        ElMessage.success(`成功上传 ${uploadsToProcess.length} 张照片`);
         
         // 刷新记录以确认更新
         await loadRecords();
@@ -373,15 +419,19 @@ export default {
           const sessionId = event.data.userId;
           const parts = sessionId.split('_');
           
-          if (parts.length === 2 && parts[0] === userId.value) {
+          if (parts.length === 3 && parts[0] === userId.value) {
             const recordId = parts[1];
+            const fieldId = parts[2];
             const imageData = event.data.imageData;
             
             // 保存图片数据
-            capturedImages.value[recordId] = imageData;
+            if (!capturedImages.value[recordId]) {
+              capturedImages.value[recordId] = {};
+            }
+            capturedImages.value[recordId][fieldId] = imageData;
             
             // 保存到附件字段
-            savePhotoToAttachment(recordId, imageData);
+            savePhotoToAttachment(recordId, fieldId, imageData);
           }
         }
       });
@@ -390,9 +440,29 @@ export default {
       loadRecords();
     });
 
-    watch([() => props.tableId, () => props.viewId], async () => {
-      await loadFields();
-      await loadRecords();
+    watch([() => props.tableId, () => props.viewId, () => props.selectedAttachmentFields], async (newValues, oldValues) => {
+      const [newTableId, newViewId, newSelectedFields] = newValues;
+      const [oldTableId, oldViewId, oldSelectedFields] = oldValues || [];
+
+      // 如果表格变化，重新加载字段并重置显示字段
+      if (newTableId !== oldTableId) {
+        selectedDisplayFields.value = []; // 重置显示字段
+        await loadFields();
+      }
+      
+      // 如果表格、视图或选中的附件字段变化，并且都有值，则重新加载记录
+      if (newTableId && newViewId && newSelectedFields && newSelectedFields.length > 0) {
+         if (newTableId !== oldTableId || newViewId !== oldViewId || JSON.stringify(newSelectedFields) !== JSON.stringify(oldSelectedFields)) {
+            await loadRecords();
+         }
+      } else {
+        records.value = [];
+      }
+    }, { immediate: true });
+
+    // 计算可供选择的显示字段（排除附件字段）
+    const availableDisplayFields = computed(() => {
+      return allFields.value.filter(field => field.type !== 17); // 过滤掉附件字段
     });
 
     return {
@@ -413,7 +483,9 @@ export default {
       handleFileUpload,
       formatFieldValue,
       batchUploadAllPhotos,
-      refreshRecords
+      refreshRecords,
+      attachmentFields,
+      availableDisplayFields,
     };
   }
 };
@@ -445,7 +517,7 @@ export default {
             size="small"
           >
             <el-option
-              v-for="field in allFields"
+              v-for="field in availableDisplayFields" 
               :key="field.id"
               :label="field.name"
               :value="field.id"
@@ -515,70 +587,75 @@ export default {
       </el-table-column>
       
       <el-table-column 
-        label="状态" 
-        width="100"
+        label="附件操作"
+        fixed="right"
         align="center"
-      >
-        <template #default="scope">
-          <el-tag 
-            v-if="scope.row.hasPhoto" 
-            type="success" 
-            effect="light" 
-            size="small"
-          >
-            已上传
-          </el-tag>
-          <el-tag 
-            v-else-if="capturedImages[scope.row.id]" 
-            type="warning" 
-            effect="light" 
-            size="small"
-          >
-            待上传
-          </el-tag>
-          <el-tag 
-            v-else 
-            type="danger" 
-            effect="light" 
-            size="small"
-          >
-            未拍照
-          </el-tag>
-        </template>
-      </el-table-column>
-      
-      <el-table-column 
-        label="操作"
-        width="220"
-        align="center"
+        min-width="220"
       >
         <template #default="scope">
           <div class="row-actions">
-            <div class="action-buttons">
-              <el-button 
-                type="primary" 
-                size="small" 
-                @click="openCameraPage(scope.row.id)"
-              >
-                {{ scope.row.hasPhoto ? '重新拍照' : '拍照' }}
-              </el-button>
+            <div 
+              v-for="fieldId in selectedAttachmentFields" 
+              :key="fieldId" 
+              class="field-actions"
+            >
+              <div class="field-name">
+                <span>{{ allFields.find(f => f.id === fieldId)?.name || '附件字段' }}</span>
+                <el-tag 
+                  v-if="scope.row.attachmentStatus && scope.row.attachmentStatus[fieldId]" 
+                  type="success" 
+                  effect="light" 
+                  size="small"
+                >
+                  已上传
+                </el-tag>
+                <el-tag 
+                  v-else-if="capturedImages[scope.row.id] && capturedImages[scope.row.id][fieldId]" 
+                  type="warning" 
+                  effect="light" 
+                  size="small"
+                >
+                  待上传
+                </el-tag>
+                <el-tag 
+                  v-else 
+                  type="danger" 
+                  effect="light" 
+                  size="small"
+                >
+                  未拍照
+                </el-tag>
+              </div>
               
-              <el-upload
-                :auto-upload="false"
-                :show-file-list="false"
-                :on-change="(file) => handleFileUpload(file.raw, scope.row.id)"
-                accept="image/*"
-              >
-                <el-button size="small" type="success">手动上传图片</el-button>
-              </el-upload>
+              <div class="action-buttons">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  @click="openCameraPage(scope.row.id, fieldId)"
+                >
+                  {{ scope.row.attachmentStatus && scope.row.attachmentStatus[fieldId] ? '重拍' : '拍照' }}
+                </el-button>
+                
+                <el-upload
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="(file) => handleFileUpload(file.raw, scope.row.id, fieldId)"
+                  accept="image/*"
+                >
+                  <el-button size="small" type="success">上传</el-button>
+                </el-upload>
+              </div>
+              
+              <div v-if="capturedImages[scope.row.id] && capturedImages[scope.row.id][fieldId]" class="preview-container">
+                <img 
+                  :src="capturedImages[scope.row.id][fieldId]" 
+                  class="preview-image" 
+                  alt="预览图"
+                />
+              </div>
             </div>
-            
-            <div v-if="capturedImages[scope.row.id]" class="preview-container">
-              <img 
-                :src="capturedImages[scope.row.id]" 
-                class="preview-image" 
-                alt="预览图"
-              />
+            <div v-if="!selectedAttachmentFields || selectedAttachmentFields.length === 0" class="no-attachment-fields">
+              请在上方选择附件字段
             </div>
           </div>
         </template>
@@ -711,6 +788,36 @@ export default {
   text-align: center;
   font-size: 14px;
   color: #606266;
+}
+
+.field-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 180px;
+}
+
+.field-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+}
+
+.no-attachment-fields {
+  color: #909399;
+  font-size: 14px;
+  margin-top: 10px;
 }
 
 /* 响应式布局 */

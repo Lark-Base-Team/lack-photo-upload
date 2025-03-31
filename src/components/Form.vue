@@ -20,7 +20,7 @@ export default {
     const formData = ref({ 
       table: '',
       view: '',
-      field: ''
+      fields: []
     });
     const tableMetaList = ref([]);
     const fieldList = ref([]);
@@ -50,6 +50,11 @@ export default {
         try {
           const table = await bitable.base.getTableById(formData.value.table);
           fieldList.value = await table.getFieldMetaList();
+          
+          // 如果有附件字段，默认选择第一个
+          if (attachmentFields.value.length > 0 && formData.value.fields.length === 0) {
+            formData.value.fields = [attachmentFields.value[0].id];
+          }
         } catch (error) {
           console.error('加载字段失败:', error);
           ElMessage.error('加载字段失败');
@@ -63,7 +68,7 @@ export default {
 
     watch(() => formData.value.table, () => {
       formData.value.view = '';
-      formData.value.field = '';
+      formData.value.fields = [];
       loadFields();
     });
 
@@ -123,7 +128,9 @@ export default {
     
     <el-form-item label="选择附件字段" size="large" v-if="formData.table">
       <el-select 
-        v-model="formData.field" 
+        v-model="formData.fields" 
+        multiple
+        collapse-tags
         placeholder="请选择附件字段" 
         style="width: 100%"
         :loading="isLoading"
@@ -137,6 +144,9 @@ export default {
       </el-select>
       <div v-if="attachmentFields.length === 0 && !isLoading" class="no-fields-tip">
         没有找到附件类型的字段，请先在表格中创建一个附件字段
+      </div>
+      <div v-else-if="attachmentFields.length > 0" class="fields-tip">
+        可以选择多个附件字段，每个字段都可以单独拍照上传
       </div>
     </el-form-item>
 
@@ -157,6 +167,11 @@ export default {
 }
 .no-fields-tip {
   color: #f56c6c;
+  font-size: 14px;
+  margin-top: 5px;
+}
+.fields-tip {
+  color: #409EFF;
   font-size: 14px;
   margin-top: 5px;
 }

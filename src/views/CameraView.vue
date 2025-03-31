@@ -6,6 +6,11 @@ import { ElButton, ElSelect, ElOption, ElTag, ElSwitch, ElMessage } from 'elemen
 const route = useRoute();
 const router = useRouter();
 const userId = route.params.userId;
+// 解析会话ID，获取记录ID和字段ID
+const sessionParts = userId.split('_');
+const actualUserId = sessionParts[0];
+const recordId = sessionParts.length > 1 ? sessionParts[1] : '';
+const fieldId = sessionParts.length > 2 ? sessionParts[2] : '';
 const videoRef = ref(null);
 const canvasRef = ref(null);
 const previewCanvasRef = ref(null);
@@ -538,6 +543,11 @@ watch(selectedCamera, () => {
 });
 
 onMounted(async () => {
+  // 显示当前拍照的记录和字段信息
+  if (recordId && fieldId) {
+    console.log(`正在为记录 ${recordId} 的字段 ${fieldId} 拍照`);
+  }
+  
   // 加载设置
   loadSettings();
   
@@ -562,6 +572,11 @@ onUnmounted(() => {
 <template>
   <div class="camera-view">
     <h2>拍照</h2>
+    
+    <!-- 显示当前拍照的记录和字段信息 -->
+    <div v-if="recordId && fieldId" class="photo-info">
+      正在为记录 {{ recordId.substring(0, 8) }}... 拍照
+    </div>
     
     <div v-if="errorMessage" class="error-message">
       {{ errorMessage }}
@@ -810,5 +825,14 @@ onUnmounted(() => {
   .preview-content {
     max-width: 80%;
   }
+}
+
+.photo-info {
+  margin-bottom: 15px;
+  padding: 8px 12px;
+  background-color: #ecf5ff;
+  border-radius: 4px;
+  color: #409eff;
+  font-size: 14px;
 }
 </style> 
