@@ -1,22 +1,21 @@
 <script>
-import { bitable } from '@lark-base-open/js-sdk';
-import { ref, onMounted, watch, computed } from 'vue';
-import { v4 as uuidv4 } from 'uuid';
+import {bitable} from '@lark-base-open/js-sdk';
+import {computed, onMounted, ref, watch} from 'vue';
+import {v4 as uuidv4} from 'uuid';
 import {
+  ElButton,
+  ElDialog,
+  ElEmpty,
+  ElMessage,
+  ElOption,
+  ElProgress,
+  ElSelect,
   ElTable,
   ElTableColumn,
-  ElButton,
-  ElMessage,
-  ElLoading,
-  ElSelect,
-  ElOption,
-  ElUpload,
-  ElDialog,
-  ElProgress,
   ElTag,
-  ElEmpty,
+  ElUpload,
 } from 'element-plus';
-import { RefreshRight } from '@element-plus/icons-vue';
+import {RefreshRight} from '@element-plus/icons-vue';
 
 export default {
   components: {
@@ -52,7 +51,6 @@ export default {
     const userId = ref('');
     const capturedImages = ref({});  // 记录ID -> 图片数据
     const allFields = ref([]);
-    const displayFields = ref([]);
     const selectedDisplayFields = ref([]);
     const batchUploading = ref(false);
     const batchUploadProgress = ref(0);
@@ -105,26 +103,24 @@ export default {
         const recordList = await view.getVisibleRecordIdList();
         
         // 获取记录详情
-        const recordDetails = await Promise.all(
-          recordList.map(async (recordId) => {
-            const record = await table.getRecordById(recordId);
-            
-            // 检查是否已有附件
-            let hasPhoto = false;
-            if (props.fieldId && record.fields[props.fieldId]) {
-              const attachments = record.fields[props.fieldId];
-              hasPhoto = Array.isArray(attachments) && attachments.length > 0;
-            }
-            
-            return {
-              id: recordId,
-              fields: record.fields,
-              hasPhoto: hasPhoto
-            };
-          })
+        records.value = await Promise.all(
+            recordList.map(async (recordId) => {
+              const record = await table.getRecordById(recordId);
+
+              // 检查是否已有附件
+              let hasPhoto = false;
+              if (props.fieldId && record.fields[props.fieldId]) {
+                const attachments = record.fields[props.fieldId];
+                hasPhoto = Array.isArray(attachments) && attachments.length > 0;
+              }
+
+              return {
+                id: recordId,
+                fields: record.fields,
+                hasPhoto: hasPhoto
+              };
+            })
         );
-        
-        records.value = recordDetails;
       } catch (error) {
         console.error('加载记录失败:', error);
         ElMessage.error('加载记录失败');

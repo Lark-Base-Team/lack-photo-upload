@@ -1,11 +1,7 @@
 <script>
-import { bitable } from '@lark-base-open/js-sdk';
-import { ref, onMounted, watch } from 'vue';
-import {
-  ElFormItem,
-  ElSelect,
-  ElOption,
-} from 'element-plus';
+import {bitable} from '@lark-base-open/js-sdk';
+import {onMounted, ref, watch} from 'vue';
+import {ElFormItem, ElOption, ElSelect,} from 'element-plus';
 
 export default {
   components: {
@@ -31,8 +27,7 @@ export default {
       if (props.tableId) {
         try {
           const table = await bitable.base.getTableById(props.tableId);
-          const views = await table.getViewMetaList();
-          viewList.value = views;
+          viewList.value = await table.getViewMetaList();
         } catch (error) {
           console.error('加载视图失败:', error);
           viewList.value = [];
