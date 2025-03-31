@@ -1,0 +1,187 @@
+<script>
+import { bitable } from '@lark-base-open/js-sdk';
+import { ref, onMounted, watch, computed } from 'vue';
+import {
+  ElButton,
+  ElForm,
+  ElFormItem,
+  ElSelect,
+  ElOption,
+  ElMessage,
+} from 'element-plus';
+import ViewSelector from './ViewSelector.vue';
+
+export default {
+  components: {
+    ElButton,
+    ElForm,
+    ElFormItem,
+    ElSelect,
+    ElOption,
+    ViewSelector,
+  },
+  setup(props, { emit }) {
+    const formData = ref({ 
+      table: '',
+      view: '',
+      field: ''
+    });
+    const tableMetaList = ref([]);
+    const fieldList = ref([]);
+    const isLoading = ref(false);
+
+    // 只过滤出附件类型的字段 (type=17)
+    const attachmentFields = computed(() => {
+      return fieldList.value.filter(field => field.type === 17);
+    });
+
+    const addRecord = async () => {
+      const tableId = formData.value.table;
+      if (tableId) {
+        const table = await bitable.base.getTableById(tableId);
+        table.addRecord({ fields: {} });
+      }
+    };
+
+    const loadFields = async () => {
+      if (formData.value.table) {
+        isLoading.value = true;
+        try {
+          const table = await bitable.base.getTableById(formData.value.table);
+          const fields = await table.getFieldMetaList();
+          fieldList.value = fields;
+        } catch (error) {
+          console.error('加载字段失败:', error);
+          ElMessage.error('加载字段失败');
+        } finally {
+          isLoading.value = false;
+        }
+      } else {
+        fieldList.value = [];
+      }
+    };
+
+    watch(() => formData.value.table, () => {
+      formData.value.view = '';
+      formData.value.field = '';
+      loadFields();
+    });
+
+    onMounted(async () => {
+      const [tableList, selection] = await Promise.all([bitable.base.getTableMetaList(), bitable.base.getSelection()]);
+      formData.value.table = selection.tableId;
+      tableMetaList.value = tableList;
+      await loadFields();
+    });
+
+    // 监听表单数据变化并发出事件
+    watch(formData, (newValue) => {
+      emit('update:modelValue', newValue);
+    }, { deep: true });
+
+    return {
+      formData,
+      tableMetaList,
+      attachmentFields,
+      isLoading,
+      addRecord,
+    };
+  },
+};
+</script>
+
+<template>
+  <el-form ref="form" class="form" :model="formData" label-position="top">
+    <el-form-item label="开发指南">
+      <a
+          href="https://bytedance.feishu.cn/docx/HazFdSHH9ofRGKx8424cwzLlnZc"
+          target="_blank"
+          rel="noopener noreferrer"
+      >
+        多维表格插件开发指南
+      </a>
+      、
+      <a
+          href="https://lark-technologies.larksuite.com/docx/HvCbdSzXNowzMmxWgXsuB2Ngs7d"
+          target="_blank"
+          rel="noopener noreferrer"
+      >
+        Base Extensions Guide
+      </a>
+    </el-form-item>
+    <el-form-item label="API">
+      <a
+          href="https://bytedance.feishu.cn/docx/HjCEd1sPzoVnxIxF3LrcKnepnUf"
+          target="_blank"
+          rel="noopener noreferrer"
+      >
+        多维表格插件API
+      </a>
+      、
+      <a
+          href="https://lark-technologies.larksuite.com/docx/Y6IcdywRXoTYSOxKwWvuLK09sFe"
+          target="_blank"
+          rel="noopener noreferrer"
+      >
+        Base Extensions Front-end API
+      </a>
+    </el-form-item>
+    <el-form-item label="选择数据表" size="large">
+      <el-select v-model="formData.table" placeholder="请选择数据表" style="width: 100%">
+        <el-option
+            v-for="meta in tableMetaList"
+            :key="meta.id"
+            :label="meta.name"
+            :value="meta.id"
+        />
+      </el-select>
+    </el-form-item>
+    
+    <ViewSelector v-if="formData.table" v-model="formData.view" :tableId="formData.table" />
+    
+    <el-form-item label="选择附件字段" size="large" v-if="formData.table">
+      <el-select 
+        v-model="formData.field" 
+        placeholder="请选择附件字段" 
+        style="width: 100%"
+        :loading="isLoading"
+      >
+        <el-option
+            v-for="field in attachmentFields"
+            :key="field.id"
+            :label="field.name"
+            :value="field.id"
+        />
+      </el-select>
+      <div v-if="attachmentFields.length === 0 && !isLoading" class="no-fields-tip">
+        没有找到附件类型的字段，请先在表格中创建一个附件字段
+      </div>
+    </el-form-item>
+    
+    <el-button 
+      type="primary" 
+      plain 
+      size="large" 
+      @click="addRecord"
+      v-if="!formData.view || !formData.field"
+    >
+      新增一行记录
+    </el-button>
+  </el-form>
+</template>
+
+<style scoped>
+.form :deep(.el-form-item__label) {
+  font-size: 16px;
+  color: var(--el-text-color-primary);
+  margin-bottom: 0;
+}
+.form :deep(.el-form-item__content) {
+  font-size: 16px;
+}
+.no-fields-tip {
+  color: #f56c6c;
+  font-size: 14px;
+  margin-top: 5px;
+}
+</style>

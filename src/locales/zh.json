@@ -1,0 +1,9 @@
+{
+  "title": "标题",
+  "selectTable": "选择数据表",
+  "selectView": "选择视图",
+  "selectField": "选择字段",
+  "addRecord": "新增一行记录",
+  "developmentGuide": "开发指南",
+  "api": "API"
+}
