@@ -92,40 +92,6 @@ export default {
 
 <template>
   <el-form ref="form" class="form" :model="formData" label-position="top">
-    <el-form-item label="开发指南">
-      <a
-          href="https://bytedance.feishu.cn/docx/HazFdSHH9ofRGKx8424cwzLlnZc"
-          target="_blank"
-          rel="noopener noreferrer"
-      >
-        多维表格插件开发指南
-      </a>
-      、
-      <a
-          href="https://lark-technologies.larksuite.com/docx/HvCbdSzXNowzMmxWgXsuB2Ngs7d"
-          target="_blank"
-          rel="noopener noreferrer"
-      >
-        Base Extensions Guide
-      </a>
-    </el-form-item>
-    <el-form-item label="API">
-      <a
-          href="https://bytedance.feishu.cn/docx/HjCEd1sPzoVnxIxF3LrcKnepnUf"
-          target="_blank"
-          rel="noopener noreferrer"
-      >
-        多维表格插件API
-      </a>
-      、
-      <a
-          href="https://lark-technologies.larksuite.com/docx/Y6IcdywRXoTYSOxKwWvuLK09sFe"
-          target="_blank"
-          rel="noopener noreferrer"
-      >
-        Base Extensions Front-end API
-      </a>
-    </el-form-item>
     <el-form-item label="选择数据表" size="large">
       <el-select v-model="formData.table" placeholder="请选择数据表" style="width: 100%">
         <el-option
