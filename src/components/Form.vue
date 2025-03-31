@@ -1,15 +1,9 @@
 <script>
-import { bitable } from '@lark-base-open/js-sdk';
-import { ref, onMounted, watch, computed } from 'vue';
-import {
-  ElButton,
-  ElForm,
-  ElFormItem,
-  ElSelect,
-  ElOption,
-  ElMessage,
-} from 'element-plus';
+import {bitable} from '@lark-base-open/js-sdk';
+import {computed, onMounted, ref, watch} from 'vue';
+import {ElButton, ElDivider, ElForm, ElFormItem, ElMessage, ElOption, ElSelect,} from 'element-plus';
 import ViewSelector from './ViewSelector.vue';
+import Instructions from './Instructions.vue';
 
 export default {
   components: {
@@ -18,7 +12,9 @@ export default {
     ElFormItem,
     ElSelect,
     ElOption,
+    ElDivider,
     ViewSelector,
+    Instructions,
   },
   setup(props, { emit }) {
     const formData = ref({ 
@@ -29,11 +25,16 @@ export default {
     const tableMetaList = ref([]);
     const fieldList = ref([]);
     const isLoading = ref(false);
+    const showInstructions = ref(false);
 
     // 只过滤出附件类型的字段 (type=17)
     const attachmentFields = computed(() => {
       return fieldList.value.filter(field => field.type === 17);
     });
+
+    const toggleInstructions = () => {
+      showInstructions.value = !showInstructions.value;
+    };
 
     const addRecord = async () => {
       const tableId = formData.value.table;
@@ -48,8 +49,7 @@ export default {
         isLoading.value = true;
         try {
           const table = await bitable.base.getTableById(formData.value.table);
-          const fields = await table.getFieldMetaList();
-          fieldList.value = fields;
+          fieldList.value = await table.getFieldMetaList();
         } catch (error) {
           console.error('加载字段失败:', error);
           ElMessage.error('加载字段失败');
@@ -84,6 +84,8 @@ export default {
       tableMetaList,
       attachmentFields,
       isLoading,
+      showInstructions,
+      toggleInstructions,
       addRecord,
     };
   },
@@ -92,6 +94,20 @@ export default {
 
 <template>
   <el-form ref="form" class="form" :model="formData" label-position="top">
+    <div class="form-header">
+      <h2>附件拍照上传</h2>
+      <el-button 
+        type="primary" 
+        plain 
+        size="small" 
+        @click="toggleInstructions"
+      >
+        {{ showInstructions ? '隐藏使用说明' : '查看使用说明' }}
+      </el-button>
+    </div>
+    
+    <Instructions v-if="showInstructions" />
+    
     <el-form-item label="选择数据表" size="large">
       <el-select v-model="formData.table" placeholder="请选择数据表" style="width: 100%">
         <el-option
@@ -123,27 +139,21 @@ export default {
         没有找到附件类型的字段，请先在表格中创建一个附件字段
       </div>
     </el-form-item>
-    
-    <el-button 
-      type="primary" 
-      plain 
-      size="large" 
-      @click="addRecord"
-      v-if="!formData.view || !formData.field"
-    >
-      新增一行记录
-    </el-button>
+
   </el-form>
 </template>
 
 <style scoped>
-.form :deep(.el-form-item__label) {
-  font-size: 16px;
-  color: var(--el-text-color-primary);
-  margin-bottom: 0;
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
-.form :deep(.el-form-item__content) {
-  font-size: 16px;
+.form-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #303133;
 }
 .no-fields-tip {
   color: #f56c6c;

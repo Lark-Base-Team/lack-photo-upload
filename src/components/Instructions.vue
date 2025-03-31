@@ -1,0 +1,165 @@
+<script>
+export default {
+  name: 'Instructions'
+}
+</script>
+
+<template>
+  <div class="instructions-container">
+    <div class="instructions-header">
+      <h3>📷 附件拍照上传插件使用说明</h3>
+    </div>
+    
+    <div class="instructions-content">
+      <div class="instruction-step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h4>选择数据表和视图</h4>
+          <p>首先选择您要操作的数据表和视图。确保表中包含附件类型的字段，用于存储拍摄的照片。</p>
+        </div>
+      </div>
+      
+      <div class="instruction-step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h4>选择附件字段</h4>
+          <p>选择一个附件类型的字段，拍摄的照片将会上传到这个字段中。如果没有附件字段，请先在表格中创建一个。</p>
+        </div>
+      </div>
+      
+      <div class="instruction-step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h4>查看记录列表</h4>
+          <p>设置完成后，您将看到记录列表。点击记录旁边的"拍照"按钮，即可为该记录拍摄照片。</p>
+        </div>
+      </div>
+      
+      <div class="instruction-step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h4>使用摄像头</h4>
+          <p>在摄像头界面，您可以：</p>
+          <ul>
+            <li>选择不同的摄像头设备</li>
+            <li>切换高质量/标准质量模式</li>
+            <li>开启文档边缘检测功能（可自动裁剪文档）</li>
+            <li>预览截取效果</li>
+            <li>拍照并自动返回</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="instruction-step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <h4>上传照片</h4>
+          <p>拍摄完成后，照片会显示在记录列表中,并且自动上传到附件字段。</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="instructions-tips">
+      <h4>💡 小贴士</h4>
+      <ul>
+        <li>高质量模式会使用摄像头支持的最高分辨率，但可能会降低启动速度</li>
+        <li>文档边缘检测功能适合拍摄文档、证件等方形物体</li>
+        <li>您的设置（摄像头选择、分辨率模式等）会被保存，下次使用时自动恢复</li>
+        <li>如果摄像头无法打开，请检查浏览器权限设置</li>
+      </ul>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.instructions-container {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+.instructions-header {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eaeaea;
+  padding-bottom: 10px;
+}
+
+.instructions-header h3 {
+  margin: 0;
+  color: #409EFF;
+  font-size: 18px;
+}
+
+.instructions-content {
+  margin-bottom: 20px;
+}
+
+.instruction-step {
+  display: flex;
+  margin-bottom: 15px;
+  align-items: flex-start;
+}
+
+.step-number {
+  background-color: #409EFF;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-right: 15px;
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-content h4 {
+  margin: 0 0 8px 0;
+  color: #303133;
+}
+
+.step-content p {
+  margin: 0;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.step-content ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  color: #606266;
+}
+
+.step-content li {
+  margin-bottom: 5px;
+}
+
+.instructions-tips {
+  background-color: #ecf8ff;
+  border-left: 5px solid #50bfff;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.instructions-tips h4 {
+  margin: 0 0 10px 0;
+  color: #409EFF;
+}
+
+.instructions-tips ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #606266;
+}
+
+.instructions-tips li {
+  margin-bottom: 5px;
+}
+</style> 
