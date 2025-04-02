@@ -1,29 +1,98 @@
-# feishuces
+# 附件拍照上传 - 飞书多维表格插件
 
-This template should help get you started developing with Vue 3 in Vite.
+一个用于飞书多维表格的边栏插件，允许用户直接通过摄像头拍照并上传到多维表格的附件字段中。
 
-## Recommended IDE Setup
+## 功能特点
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **摄像头拍照上传**：直接使用设备摄像头拍照并上传到多维表格
+- **多摄像头支持**：可选择不同的摄像头设备
+- **分辨率控制**：支持调整拍照分辨率
+- **文档边界自动检测**：智能识别文档边界（可选功能）
+- **多附件字段支持**：可同时选择多个附件字段进行上传
+- **国际化支持**：支持中英文界面
+- **配置导入导出**：支持保存和加载插件配置
 
-## Customize configuration
+## 安装与使用
 
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+### 安装依赖
 
 ```sh
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+### 开发环境运行
 
 ```sh
 npm run dev
 ```
 
-### Compile and Minify for Production
+### 构建生产版本
 
 ```sh
 npm run build
 ```
+
+构建后的文件将输出到 `dist` 目录。
+
+## 使用指南
+
+1. **选择数据表**：从下拉菜单中选择要操作的数据表
+2. **选择视图**：选择数据表中的特定视图
+3. **选择附件字段**：选择一个或多个附件类型的字段
+4. **拍照上传**：点击记录行中的拍照按钮，使用摄像头拍照并上传
+5. **摄像头设置**：
+   - 选择不同的摄像头设备
+   - 调整分辨率设置
+   - 启用/禁用文档边界自动检测
+
+## 项目结构
+
+```
+src/
+├── assets/         # 静态资源文件
+├── components/     # 组件文件
+│   ├── ConfigManager.vue    # 配置管理组件
+│   ├── Form.vue             # 表单选择组件
+│   ├── Instructions.vue     # 使用说明组件
+│   ├── RecordTable.vue      # 记录表格组件
+│   └── ViewSelector.vue     # 视图选择器组件
+├── locales/        # 国际化文件
+│   ├── en.json             # 英文翻译
+│   ├── i18n.js            # 国际化配置
+│   └── zh.json            # 中文翻译
+├── router/         # 路由配置
+├── views/          # 页面视图
+│   ├── CameraView.vue     # 摄像头拍照页面
+│   └── HomeView.vue       # 主页面
+├── App.vue         # 应用入口组件
+└── main.js         # 应用入口文件
+```
+
+## 技术栈
+
+- **前端框架**：Vue 3
+- **构建工具**：Vite
+- **UI 组件库**：Element Plus
+- **路由管理**：Vue Router
+- **国际化**：Vue I18n
+- **飞书 SDK**：@lark-base-open/js-sdk
+
+## 开发指南
+
+### 添加新功能
+
+1. 在适当的目录中创建新的组件或修改现有组件
+2. 如需添加新页面，在 `router/index.js` 中添加路由配置
+3. 如需添加新的翻译，在 `locales` 目录下的语言文件中添加
+
+### 国际化
+
+项目使用 Vue I18n 进行国际化。添加新文本时，请在 `locales` 目录下的语言文件中添加相应的翻译。
+
+### 飞书多维表格 API
+
+项目使用 `@lark-base-open/js-sdk` 与飞书多维表格进行交互。详细 API 文档请参考[飞书开发者文档](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/bitable-v1/bitable-overview)。
+
+## 许可证
+
+[MIT](LICENSE)
