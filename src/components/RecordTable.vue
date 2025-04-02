@@ -4,10 +4,12 @@ import {computed, onMounted, ref, watch} from 'vue';
 import {v4 as uuidv4} from 'uuid';
 import {
   ElButton,
+  ElConfigProvider,
   ElDialog,
   ElEmpty,
   ElMessage,
   ElOption,
+  ElPagination,
   ElProgress,
   ElSelect,
   ElTable,
@@ -16,6 +18,8 @@ import {
   ElUpload,
 } from 'element-plus';
 import {RefreshRight} from '@element-plus/icons-vue';
+import RecordActions from './record/RecordActions.vue';
+import TableToolbar from './record/TableToolbar.vue';
 
 export default {
   components: {
@@ -30,6 +34,10 @@ export default {
     RefreshRight,
     ElTag,
     ElEmpty,
+    ElPagination,
+    ElConfigProvider,
+    RecordActions,
+    TableToolbar,
   },
   props: {
     tableId: {
@@ -51,7 +59,18 @@ export default {
     }
   },
   setup(props) {
-    const records = ref([]);
+    const allRecords = ref([]);
+    const records = computed(() => {
+      // 如果页面大小为 -1，显示全部记录
+      if (pageSize.value === -1) {
+        return allRecords.value;
+      }
+      
+      const start = (currentPage.value - 1) * pageSize.value;
+      const end = start + pageSize.value;
+      return allRecords.value.slice(start, end);
+    });
+    
     const loading = ref(false);
     const userId = ref('');
     const capturedImages = ref({});  // 记录ID -> 图片数据
@@ -64,10 +83,16 @@ export default {
     const showBatchUploadDialog = ref(false);
     const refreshing = ref(false);
     const attachmentFields = ref([]);
+    
+    // 分页相关
+    const currentPage = ref(1);
+    const pageSize = ref(10);
+    const pageSizes = ref([10, 20, 50, 100, 200, -1]); // -1 表示显示全部
+    const total = computed(() => allRecords.value.length);
 
     // 计算未拍照的记录数量
     const pendingRecordsCount = computed(() => {
-      return records.value.filter(record => !record.hasPhoto).length;
+      return allRecords.value.filter(record => !record.hasPhoto).length;
     });
 
     // 计算已拍照但未上传的记录数量
@@ -75,7 +100,7 @@ export default {
       let count = 0;
       
       for (const recordId in capturedImages.value) {
-        const record = records.value.find(r => r.id === recordId);
+        const record = allRecords.value.find(r => r.id === recordId);
         if (!record) continue;
         
         for (const fieldId in capturedImages.value[recordId]) {
@@ -87,6 +112,14 @@ export default {
       
       return count;
     });
+
+    // 自定义分页文本
+    const paginationLocale = {
+      total: '共 {total} 条',
+      goto: '前往',
+      pagesize: '条/页',
+      pageClassifier: '页'
+    };
 
     // 加载字段列表
     const loadFields = async () => {
@@ -125,7 +158,7 @@ export default {
         const recordList = await view.getVisibleRecordIdList();
         
         // 获取记录详情
-        records.value = await Promise.all(
+        allRecords.value = await Promise.all(
             recordList.map(async (recordId) => {
               const record = await table.getRecordById(recordId);
 
@@ -148,6 +181,9 @@ export default {
               };
             })
         );
+        
+        // 重置到第一页
+        currentPage.value = 1;
       } catch (error) {
         console.error('加载记录失败:', error);
         ElMessage.error('加载记录失败');
@@ -227,10 +263,10 @@ export default {
         console.log('照片已上传到附件字段');
         
         // 更新记录状态
-        const recordIndex = records.value.findIndex(r => r.id === recordId);
+        const recordIndex = allRecords.value.findIndex(r => r.id === recordId);
         if (recordIndex !== -1) {
-          records.value[recordIndex].attachmentStatus[fieldId] = true;
-          records.value[recordIndex].hasPhoto = true;
+          allRecords.value[recordIndex].attachmentStatus[fieldId] = true;
+          allRecords.value[recordIndex].hasPhoto = true;
         }
         
         ElMessage.success('照片已上传');
@@ -257,10 +293,10 @@ export default {
         console.log('文件已上传到附件字段');
         
         // 更新记录状态
-        const recordIndex = records.value.findIndex(r => r.id === recordId);
+        const recordIndex = allRecords.value.findIndex(r => r.id === recordId);
         if (recordIndex !== -1) {
-          records.value[recordIndex].attachmentStatus[fieldId] = true;
-          records.value[recordIndex].hasPhoto = true;
+          allRecords.value[recordIndex].attachmentStatus[fieldId] = true;
+          allRecords.value[recordIndex].hasPhoto = true;
         }
         
         // 保存预览图
@@ -291,7 +327,7 @@ export default {
         for (const fieldId in capturedImages.value[recordId]) {
           // 仅处理当前选中的附件字段
           if (props.selectedAttachmentFields.includes(fieldId)) {
-            const record = records.value.find(r => r.id === recordId);
+            const record = allRecords.value.find(r => r.id === recordId);
             if (record && !record.attachmentStatus[fieldId]) {
               uploadsToProcess.push({
                 recordId,
@@ -329,10 +365,10 @@ export default {
           await field.setValue(recordId, [file]);
           
           // 更新记录状态
-          const recordIndex = records.value.findIndex(r => r.id === recordId);
+          const recordIndex = allRecords.value.findIndex(r => r.id === recordId);
           if (recordIndex !== -1) {
-            records.value[recordIndex].attachmentStatus[fieldId] = true;
-            records.value[recordIndex].hasPhoto = true;
+            allRecords.value[recordIndex].attachmentStatus[fieldId] = true;
+            allRecords.value[recordIndex].hasPhoto = true;
           }
           
           // 更新进度
@@ -353,6 +389,17 @@ export default {
           showBatchUploadDialog.value = false;
         }, 1000);
       }
+    };
+
+    // 处理分页变化
+    const handleCurrentChange = (val) => {
+      currentPage.value = val;
+    };
+    
+    // 处理每页显示数量变化
+    const handleSizeChange = (val) => {
+      pageSize.value = val;
+      currentPage.value = 1; // 重置到第一页
     };
 
     // 格式化字段值显示
@@ -408,7 +455,18 @@ export default {
       }
     };
 
+    // 格式化分页大小显示文本
+    const formatPageSize = (size) => {
+      return size === -1 ? '全部' : size;
+    };
+
     onMounted(() => {
+      // 从本地存储加载分页设置
+      const savedPageSize = localStorage.getItem('recordTablePageSize');
+      if (savedPageSize) {
+        pageSize.value = parseInt(savedPageSize, 10);
+      }
+      
       // 生成唯一用户ID
       userId.value = localStorage.getItem('userId') || uuidv4();
       localStorage.setItem('userId', userId.value);
@@ -440,6 +498,11 @@ export default {
       loadRecords();
     });
 
+    // 保存分页设置到本地存储
+    watch(pageSize, (newSize) => {
+      localStorage.setItem('recordTablePageSize', newSize.toString());
+    });
+
     watch([() => props.tableId, () => props.viewId, () => props.selectedAttachmentFields], async (newValues, oldValues) => {
       const [newTableId, newViewId, newSelectedFields] = newValues;
       const [oldTableId, oldViewId, oldSelectedFields] = oldValues || [];
@@ -456,7 +519,7 @@ export default {
             await loadRecords();
          }
       } else {
-        records.value = [];
+        allRecords.value = [];
       }
     }, { immediate: true });
 
@@ -467,6 +530,7 @@ export default {
 
     return {
       records,
+      allRecords,
       loading,
       capturedImages,
       allFields,
@@ -486,6 +550,15 @@ export default {
       refreshRecords,
       attachmentFields,
       availableDisplayFields,
+      // 分页相关
+      currentPage,
+      pageSize,
+      pageSizes,
+      total,
+      handleCurrentChange,
+      handleSizeChange,
+      formatPageSize,
+      paginationLocale,
     };
   }
 };
@@ -494,64 +567,17 @@ export default {
 <template>
   <div class="record-table">
     <!-- 标题和工具栏区域 -->
-    <div class="record-table-header">
-      <div class="header-title">
-        <h3>
-          记录列表 
-          <span v-if="pendingRecordsCount > 0" class="pending-count">
-            ({{ pendingRecordsCount }} 条记录未拍照)
-          </span>
-        </h3>
-      </div>
-      
-      <div class="header-actions">
-        <!-- 字段选择器 -->
-        <div class="display-fields-selector">
-          <span class="selector-label">显示字段:</span>
-          <el-select 
-            v-model="selectedDisplayFields" 
-            multiple 
-            collapse-tags
-            style="width: 240px"
-            placeholder="选择要显示的字段"
-            size="small"
-          >
-            <el-option
-              v-for="field in availableDisplayFields" 
-              :key="field.id"
-              :label="field.name"
-              :value="field.id"
-            />
-          </el-select>
-        </div>
-        
-        <!-- 操作按钮组 -->
-        <div class="action-group">
-          <!-- 批量上传按钮 -->
-          <el-button 
-            v-if="capturedButNotUploadedCount > 0"
-            type="success"
-            size="small"
-            @click="batchUploadAllPhotos"
-            :loading="batchUploading"
-          >
-            一键上传 ({{ capturedButNotUploadedCount }})
-          </el-button>
-          
-          <!-- 刷新按钮 -->
-          <el-button 
-            type="primary"
-            size="small"
-            plain
-            :icon="RefreshRight"
-            :loading="refreshing"
-            @click="refreshRecords"
-          >
-            刷新
-          </el-button>
-        </div>
-      </div>
-    </div>
+    <TableToolbar
+      :pending-records-count="pendingRecordsCount"
+      :captured-but-not-uploaded-count="capturedButNotUploadedCount"
+      :selected-display-fields="selectedDisplayFields"
+      :available-display-fields="availableDisplayFields"
+      :batch-uploading="batchUploading"
+      :refreshing="refreshing"
+      @update:selected-display-fields="selectedDisplayFields = $event"
+      @refresh="refreshRecords"
+      @batch-upload="batchUploadAllPhotos"
+    />
     
     <!-- 记录表格 -->
     <el-table 
@@ -568,6 +594,7 @@ export default {
         label="序号" 
         width="60" 
         align="center"
+        :index="(index) => index + (currentPage - 1) * pageSize + 1"
       />
       
       <!-- 动态显示选择的字段 -->
@@ -593,77 +620,49 @@ export default {
         min-width="220"
       >
         <template #default="scope">
-          <div class="row-actions">
-            <div 
-              v-for="fieldId in selectedAttachmentFields" 
-              :key="fieldId" 
-              class="field-actions"
-            >
-              <div class="field-name">
-                <span>{{ allFields.find(f => f.id === fieldId)?.name || '附件字段' }}</span>
-                <el-tag 
-                  v-if="scope.row.attachmentStatus && scope.row.attachmentStatus[fieldId]" 
-                  type="success" 
-                  effect="light" 
-                  size="small"
-                >
-                  已上传
-                </el-tag>
-                <el-tag 
-                  v-else-if="capturedImages[scope.row.id] && capturedImages[scope.row.id][fieldId]" 
-                  type="warning" 
-                  effect="light" 
-                  size="small"
-                >
-                  待上传
-                </el-tag>
-                <el-tag 
-                  v-else 
-                  type="danger" 
-                  effect="light" 
-                  size="small"
-                >
-                  未拍照
-                </el-tag>
-              </div>
-              
-              <div class="action-buttons">
-                <el-button 
-                  type="primary" 
-                  size="small" 
-                  @click="openCameraPage(scope.row.id, fieldId)"
-                >
-                  {{ scope.row.attachmentStatus && scope.row.attachmentStatus[fieldId] ? '重拍' : '拍照' }}
-                </el-button>
-                
-                <el-upload
-                  :auto-upload="false"
-                  :show-file-list="false"
-                  :on-change="(file) => handleFileUpload(file.raw, scope.row.id, fieldId)"
-                  accept="image/*"
-                >
-                  <el-button size="small" type="success">上传</el-button>
-                </el-upload>
-              </div>
-              
-              <div v-if="capturedImages[scope.row.id] && capturedImages[scope.row.id][fieldId]" class="preview-container">
-                <img 
-                  :src="capturedImages[scope.row.id][fieldId]" 
-                  class="preview-image" 
-                  alt="预览图"
-                />
-              </div>
-            </div>
-            <div v-if="!selectedAttachmentFields || selectedAttachmentFields.length === 0" class="no-attachment-fields">
-              请在上方选择附件字段
-            </div>
-          </div>
+          <RecordActions
+            :record="scope.row"
+            :selected-attachment-fields="selectedAttachmentFields"
+            :all-fields="allFields"
+            :captured-images="capturedImages"
+            @open-camera="openCameraPage"
+            @upload-file="handleFileUpload"
+          />
         </template>
       </el-table-column>
     </el-table>
     
+    <!-- 分页控件 -->
+    <div class="pagination-container">
+      <el-config-provider :locale="{ el: { pagination: paginationLocale } }">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="pageSizes"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+          :pager-count="5"
+          prev-text="上一页"
+          next-text="下一页"
+        >
+          <template #sizes>
+            <el-select v-model="pageSize" @change="handleSizeChange">
+              <el-option
+                v-for="item in pageSizes"
+                :key="item"
+                :label="formatPageSize(item) + ' 条/页'"
+                :value="item"
+              />
+            </el-select>
+          </template>
+        </el-pagination>
+      </el-config-provider>
+    </div>
+    
     <!-- 空数据提示 -->
-    <div v-if="records.length === 0 && !loading" class="empty-data">
+    <div v-if="allRecords.length === 0 && !loading" class="empty-data">
       <el-empty description="暂无记录数据" />
     </div>
     
@@ -700,79 +699,10 @@ export default {
   padding: 20px;
 }
 
-.record-table-header {
+.pagination-container {
+  margin-top: 20px;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-}
-
-.header-title h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #303133;
-}
-
-.pending-count {
-  font-size: 14px;
-  color: #f56c6c;
-  font-weight: normal;
-  margin-left: 8px;
-}
-
-.header-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.display-fields-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.selector-label {
-  font-size: 14px;
-  color: #606266;
-}
-
-.action-group {
-  display: flex;
-  gap: 8px;
-}
-
-.row-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.preview-container {
-  width: 120px;
-  height: 90px;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #ddd;
-}
-
-.preview-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  justify-content: center;
 }
 
 .empty-data {
@@ -790,42 +720,10 @@ export default {
   color: #606266;
 }
 
-.field-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 15px;
-  padding: 10px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  background-color: #f8f9fa;
-  width: 100%;
-  box-sizing: border-box;
-  min-width: 180px;
-}
-
-.field-name {
-  font-weight: bold;
-  margin-bottom: 5px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  justify-content: center;
-}
-
-.no-attachment-fields {
-  color: #909399;
-  font-size: 14px;
-  margin-top: 10px;
-}
-
 /* 响应式布局 */
 @media (min-width: 768px) {
-  .record-table-header {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+  .pagination-container {
+    justify-content: flex-end;
   }
 }
 </style> 
