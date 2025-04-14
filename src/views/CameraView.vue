@@ -178,26 +178,33 @@ onMounted(async () => {
 
 <style scoped>
 .camera-view {
-  max-width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
-  text-align: center;
+  padding: 24px;
+  min-height: 100vh;
+  background-color: #f8f9fa;
 }
 
 .error-message {
-  color: red;
+  color: #dc3545;
   margin: 20px 0;
-  padding: 10px;
-  border: 1px solid red;
-  border-radius: 4px;
-  background-color: #ffeeee;
+  padding: 16px;
+  border: 1px solid #dc3545;
+  border-radius: 8px;
+  background-color: #fff5f5;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.1);
 }
 
 .camera-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
+  background-color: white;
+  padding: 32px;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 .video-container {
@@ -205,13 +212,15 @@ onMounted(async () => {
   width: 100%;
   max-width: 800px;
   height: auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .camera-video {
   width: 100%;
-  border-radius: 8px;
-  border: 2px solid #ddd;
   display: block;
+  background-color: #000;
 }
 
 .detection-canvas {
@@ -224,22 +233,70 @@ onMounted(async () => {
 }
 
 .camera-controls {
-  margin-top: 20px;
+  margin-top: 24px;
   display: flex;
-  gap: 15px;
+  gap: 16px;
   justify-content: center;
+  width: 100%;
+  max-width: 800px;
+}
+
+.camera-controls .el-button {
+  min-width: 160px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.camera-controls .el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .photo-info {
-  margin-bottom: 15px;
-  padding: 8px 12px;
-  background-color: #ecf5ff;
-  border-radius: 4px;
-  color: #409eff;
-  font-size: 14px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background-color: #e6f7ff;
+  border-radius: 8px;
+  color: #1890ff;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.1);
 }
 
-/* 响应式设计 */
+h2 {
+  color: #1a1a1a;
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .camera-view {
+    padding: 16px;
+  }
+
+  .camera-container {
+    padding: 20px;
+  }
+
+  .camera-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .camera-controls .el-button {
+    width: 100%;
+  }
+
+  h2 {
+    font-size: 24px;
+  }
+}
+
 @media (min-width: 1200px) {
   .video-container {
     max-width: 1000px;

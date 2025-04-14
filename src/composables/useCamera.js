@@ -28,10 +28,22 @@ export function useCamera() {
       if (savedCamera) {
         selectedCamera.value = savedCamera;
       }
+
+      // 加载摄像头分辨率设置
+      const savedResolutionSettings = localStorage.getItem('cameraResolution');
+      if (savedResolutionSettings) {
+        try {
+          const resolution = JSON.parse(savedResolutionSettings);
+          currentResolution.value = resolution;
+        } catch (e) {
+          console.error('解析保存的分辨率设置失败:', e);
+        }
+      }
       
       console.log('已加载摄像头设置:', {
         highestResolution: isHighestResolution.value,
-        camera: selectedCamera.value
+        camera: selectedCamera.value,
+        resolution: currentResolution.value
       });
     } catch (error) {
       console.error('加载摄像头设置失败:', error);
@@ -44,6 +56,9 @@ export function useCamera() {
       localStorage.setItem('cameraHighestResolution', isHighestResolution.value.toString());
       if (selectedCamera.value) {
         localStorage.setItem('selectedCamera', selectedCamera.value);
+      }
+      if (currentResolution.value.width && currentResolution.value.height) {
+        localStorage.setItem('cameraResolution', JSON.stringify(currentResolution.value));
       }
     } catch (error) {
       console.error('保存摄像头设置失败:', error);
@@ -93,6 +108,10 @@ export function useCamera() {
       if (isHighestResolution.value) {
         constraints.video.width = { ideal: 3840 }; // 4K宽度
         constraints.video.height = { ideal: 2160 }; // 4K高度
+      } else if (currentResolution.value.width && currentResolution.value.height) {
+        // 使用保存的分辨率设置
+        constraints.video.width = { ideal: currentResolution.value.width };
+        constraints.video.height = { ideal: currentResolution.value.height };
       }
       
       console.log('使用约束:', constraints);
@@ -110,6 +129,9 @@ export function useCamera() {
           height: settings.height
         };
         console.log('实际使用的分辨率:', settings.width, 'x', settings.height);
+        
+        // 保存实际使用的分辨率
+        saveSettings();
       }
     } catch (err) {
       errorMessage.value = `无法访问摄像头: ${err.message}`;
