@@ -119,6 +119,16 @@ const importConfiguration = (config) => {
   }
 };
 
+// 打开问题反馈讨论组
+const openFeedbackGroup = () => {
+  window.open('https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=927l4007-2353-4fa3-83f8-2309edf9d423', '_blank');
+  
+  // 记录点击反馈按钮事件
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', 'feedback_button_click');
+  }
+};
+
 </script>
 
 <template>
@@ -126,10 +136,22 @@ const importConfiguration = (config) => {
     <div class="home-view">
       <Form @update:modelValue="handleFormDataChange" v-model="formData" />
       
-      <ConfigManager 
-        @export-config="exportConfiguration"
-        @import-config="importConfiguration"
-      />
+      <div class="config-section">
+        <ConfigManager 
+          @export-config="exportConfiguration"
+          @import-config="importConfiguration"
+        />
+        
+        <el-button
+          type="info"
+          size="small"
+          plain
+          @click="openFeedbackGroup"
+          class="feedback-button"
+        >
+          问题反馈
+        </el-button>
+      </div>
       
       <RecordTable 
         v-if="showRecordTable"
@@ -155,5 +177,15 @@ const importConfiguration = (config) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.config-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feedback-button {
+  margin-left: auto;
 }
 </style> 

@@ -407,47 +407,193 @@ export default {
       if (value === undefined || value === null) return '';
       
       try {
-        // 根据字段类型格式化显示
         switch (fieldType) {
-          case 1: // 多选
-          case 2: // 单选
+          case 1: // 多行文本
             if (Array.isArray(value)) {
-              return value.map(v => v.text || String(v)).join(', ');
-            } else if (typeof value === 'object') {
-              return value.text || JSON.stringify(value);
+              // 处理 IOpenTextFieldValue 类型
+              return value.map(segment => {
+                switch (segment.type) {
+                  case 'Text':
+                    return segment.text;
+                  case 'Url':
+                    return segment.text;
+                  case 'UserMention':
+                    return segment.name;
+                  case 'DocMention':
+                    return segment.text;
+                  default:
+                    return segment.text;
+                }
+              }).join('');
             }
             return String(value);
-          case 3: // 文本
-          case 4: // 数字
-          case 5: // 单行文本
-          case 7: // 多行文本
-            return String(value);
-          case 11: // 日期
+            
+          case 2: // 数字
+            return typeof value === 'number' ? value.toString() : String(value);
+            
+          case 3: // 单选
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 4: // 多选
+            if (Array.isArray(value)) {
+              return value.map(v => {
+                if (typeof v === 'string') {
+                  return v;
+                }
+                return v.text || String(v);
+              }).join(', ');
+            }
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 5: // 日期
             if (typeof value === 'number' || typeof value === 'string') {
-              try {
-                return new Date(value).toLocaleDateString();
-              } catch (e) {
-                return String(value);
-              }
+              return new Date(value).toLocaleString();
             }
             return String(value);
+            
+          case 7: // 复选框
+            return value ? '是' : '否';
+            
+          case 11: // 人员
+          case 1003: // 创建人
+          case 1004: // 修改人
+            if (Array.isArray(value)) {
+              return value.map(v => {
+                if (typeof v === 'string') {
+                  return v;
+                }
+                return v.name || v.text || String(v);
+              }).join(', ');
+            }
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.name || value?.text || String(value);
+            
+          case 13: // 电话
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 15: // 超链接
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
           case 17: // 附件
             if (Array.isArray(value)) {
               return `${value.length}个附件`;
             }
             return '';
+            
+          case 18: // 单向关联
+          case 21: // 双向关联
+            if (Array.isArray(value)) {
+              return value.map(v => {
+                if (typeof v === 'string') {
+                  return v;
+                }
+                return v.text || String(v);
+              }).join(', ');
+            }
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 19: // 查找引用
+            if (Array.isArray(value)) {
+              return value.map(v => {
+                if (typeof v === 'string') {
+                  return v;
+                }
+                if (typeof v === 'number') {
+                  return v.toString();
+                }
+                if (v === null || v === undefined) {
+                  return '';
+                }
+                return v.text || String(v);
+              }).join(', ');
+            }
+            if (typeof value === 'string') {
+              return value;
+            }
+            if (typeof value === 'number') {
+              return value.toString();
+            }
+            if (value === null || value === undefined) {
+              return '';
+            }
+            return value?.text || String(value);
+            
+          case 20: // 公式
+            return String(value);
+            
+          case 22: // 地理位置
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 23: // 群聊
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 1001: // 创建时间
+          case 1002: // 修改时间
+            if (typeof value === 'number' || typeof value === 'string') {
+              return new Date(value).toLocaleString();
+            }
+            return String(value);
+            
+          case 1005: // 自动编号
+            return String(value);
+            
+          case 99001: // 二维码
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
+          case 99002: // 进度条
+            return typeof value === 'number' ? `${value}%` : String(value);
+            
+          case 99003: // 货币
+            return typeof value === 'number' ? `¥${value.toFixed(2)}` : String(value);
+            
+          case 99004: // 评分
+            return typeof value === 'number' ? `${value}星` : String(value);
+            
+          case 99005: // 邮箱
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
+            
           default:
             if (Array.isArray(value)) {
               return value.map(v => {
-                if (typeof v === 'object') {
-                  return v.text || JSON.stringify(v);
+                if (typeof v === 'string') {
+                  return v;
                 }
-                return String(v);
+                return v.text || String(v);
               }).join(', ');
-            } else if (typeof value === 'object') {
-              return value.text || JSON.stringify(value);
             }
-            return String(value);
+            if (typeof value === 'string') {
+              return value;
+            }
+            return value?.text || String(value);
         }
       } catch (error) {
         console.error('格式化字段值失败:', error, value, fieldType);
