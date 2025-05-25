@@ -233,26 +233,35 @@ onMounted(async () => {
 }
 
 .camera-controls {
-  margin-top: 24px;
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  gap: 16px;
-  justify-content: center;
-  width: 100%;
-  max-width: 800px;
+  gap: 20px;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 15px 30px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .camera-controls .el-button {
-  min-width: 160px;
-  height: 48px;
+  min-width: 120px;
   font-size: 16px;
-  font-weight: 500;
-  border-radius: 8px;
+  height: 44px;
+  border-radius: 22px;
   transition: all 0.3s ease;
 }
 
 .camera-controls .el-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.camera-controls .el-button:active {
+  transform: translateY(0);
 }
 
 .photo-info {

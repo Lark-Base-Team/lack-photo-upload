@@ -2,28 +2,63 @@ import { ref, onUnmounted } from 'vue';
 
 /**
  * 文档边界检测的组合式函数
- * 处理文档边界的检测、绘制和裁剪
+ * 使用 OpenCV.js 进行更精确的文档边缘检测
  */
 export function useDocumentDetection() {
   const canvasRef = ref(null);
   const documentBounds = ref(null);
   const isAutoDetectEnabled = ref(false);
   const detectionInterval = ref(null);
+  const isOpenCVReady = ref(false);
+
+  // 初始化 OpenCV
+  const initOpenCV = async () => {
+    if (isOpenCVReady.value) return;
+    
+    try {
+      // 等待 OpenCV.js 加载完成
+      if (!window.cv) {
+        await new Promise((resolve, reject) => {
+          const checkOpenCV = () => {
+            if (window.cv) {
+              isOpenCVReady.value = true;
+              resolve();
+            } else {
+              setTimeout(checkOpenCV, 100);
+            }
+          };
+          checkOpenCV();
+        });
+      } else {
+        isOpenCVReady.value = true;
+      }
+      
+      console.log('OpenCV.js 已就绪');
+    } catch (error) {
+      console.error('OpenCV.js 初始化失败:', error);
+      isOpenCVReady.value = false;
+      throw error;
+    }
+  };
 
   // 从本地存储加载设置
-  const loadSettings = () => {
+  const loadSettings = async () => {
     try {
-      // 加载自动检测设置
       const savedAutoDetect = localStorage.getItem('cameraAutoDetect');
       if (savedAutoDetect !== null) {
         isAutoDetectEnabled.value = savedAutoDetect === 'true';
       }
       
+      // 初始化 OpenCV
+      await initOpenCV();
+      
       console.log('已加载文档检测设置:', {
-        autoDetect: isAutoDetectEnabled.value
+        autoDetect: isAutoDetectEnabled.value,
+        opencvReady: isOpenCVReady.value
       });
     } catch (error) {
       console.error('加载文档检测设置失败:', error);
+      isAutoDetectEnabled.value = false;
     }
   };
 
@@ -47,14 +82,24 @@ export function useDocumentDetection() {
   };
 
   // 切换自动检测模式
-  const toggleAutoDetect = (value) => {
+  const toggleAutoDetect = async (value) => {
     console.log('自动检测开关切换:', value);
     isAutoDetectEnabled.value = value;
     saveSettings();
     
     if (value) {
-      console.log('启动文档检测');
-      startDocumentDetection();
+      try {
+        // 确保 OpenCV 已加载
+        if (!isOpenCVReady.value) {
+          await initOpenCV();
+        }
+        console.log('启动文档检测');
+        startDocumentDetection();
+      } catch (error) {
+        console.error('启动文档检测失败:', error);
+        isAutoDetectEnabled.value = false;
+        saveSettings();
+      }
     } else {
       console.log('停止文档检测');
       stopDocumentDetection();
@@ -64,7 +109,15 @@ export function useDocumentDetection() {
 
   // 开始文档检测
   const startDocumentDetection = (videoRef) => {
-    if (!videoRef || !videoRef.value) return;
+    if (!videoRef || !videoRef.value || !isOpenCVReady.value || !window.cv) {
+      console.warn('文档检测未就绪:', {
+        videoRef: !!videoRef,
+        videoValue: !!videoRef?.value,
+        opencvReady: isOpenCVReady.value,
+        cvAvailable: !!window.cv
+      });
+      return;
+    }
     
     console.log('开始文档检测');
     
@@ -81,7 +134,7 @@ export function useDocumentDetection() {
     
     // 每200ms检测一次
     detectionInterval.value = setInterval(() => {
-      if (videoRef.value && canvasRef.value) {
+      if (videoRef.value && canvasRef.value && isOpenCVReady.value && window.cv) {
         detectDocumentBounds(videoRef.value);
         drawDocumentBounds();
       }
@@ -102,7 +155,7 @@ export function useDocumentDetection() {
 
   // 检测文档边界
   const detectDocumentBounds = (video) => {
-    if (!video || !canvasRef.value) return;
+    if (!video || !canvasRef.value || !isOpenCVReady.value || !window.cv) return;
     
     const canvas = canvasRef.value;
     const ctx = canvas.getContext('2d');
@@ -112,170 +165,94 @@ export function useDocumentDetection() {
     
     // 获取图像数据
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const width = canvas.width;
-    const height = canvas.height;
     
-    // 检测边缘点
-    const edgePoints = [];
-    const gradientThreshold = 45; // 提高梯度阈值，减少噪点
-    
-    // 采样步长，根据图像大小动态调整
-    const stepSize = Math.max(5, Math.floor(Math.min(width, height) / 100));
-    
-    // 创建灰度图像以提高处理速度
-    const grayData = new Uint8Array(width * height);
-    for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-      grayData[j] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-    }
-    
-    // 使用Sobel算子进行边缘检测
-    for (let y = stepSize; y < height - stepSize; y += stepSize) {
-      for (let x = stepSize; x < width - stepSize; x += stepSize) {
-        // 3x3 Sobel算子
-        const idx = y * width + x;
+    try {
+      // 创建 OpenCV 矩阵
+      const src = new window.cv.Mat(canvas.height, canvas.width, window.cv.CV_8UC4);
+      src.data.set(imageData.data);
+      
+      const gray = new window.cv.Mat();
+      const edges = new window.cv.Mat();
+      const contours = new window.cv.MatVector();
+      const hierarchy = new window.cv.Mat();
+      
+      // 转换为灰度图
+      window.cv.cvtColor(src, gray, window.cv.COLOR_RGBA2GRAY);
+      
+      // 高斯模糊
+      window.cv.GaussianBlur(gray, gray, new window.cv.Size(5, 5), 0);
+      
+      // Canny 边缘检测
+      window.cv.Canny(gray, edges, 75, 200);
+      
+      // 膨胀操作，连接边缘
+      const kernel = window.cv.getStructuringElement(window.cv.MORPH_RECT, new window.cv.Size(3, 3));
+      window.cv.dilate(edges, edges, kernel);
+      
+      // 查找轮廓
+      window.cv.findContours(edges, contours, hierarchy, window.cv.RETR_LIST, window.cv.CHAIN_APPROX_SIMPLE);
+      
+      // 按面积排序轮廓
+      const sortedContours = [];
+      for (let i = 0; i < contours.size(); i++) {
+        const cnt = contours.get(i);
+        const area = window.cv.contourArea(cnt);
+        sortedContours.push({ cnt, area });
+      }
+      sortedContours.sort((a, b) => b.area - a.area);
+      
+      // 查找最大的四边形轮廓
+      let documentContour = null;
+      for (const { cnt } of sortedContours.slice(0, 5)) {
+        const peri = window.cv.arcLength(cnt, true);
+        const approx = new window.cv.Mat();
+        window.cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
         
-        // 计算水平和垂直梯度
-        const gx = 
-          -1 * grayData[idx - width - 1] + 
-          -2 * grayData[idx - 1] + 
-          -1 * grayData[idx + width - 1] + 
-          1 * grayData[idx - width + 1] + 
-          2 * grayData[idx + 1] + 
-          1 * grayData[idx + width + 1];
-          
-        const gy = 
-          -1 * grayData[idx - width - 1] + 
-          -2 * grayData[idx - width] + 
-          -1 * grayData[idx - width + 1] + 
-          1 * grayData[idx + width - 1] + 
-          2 * grayData[idx + width] + 
-          1 * grayData[idx + width + 1];
-        
-        // 计算梯度幅值
-        const grad = Math.sqrt(gx * gx + gy * gy);
-        
-        // 如果梯度大于阈值，认为是边缘点
-        if (grad > gradientThreshold) {
-          // 计算梯度方向，用于更精确地确定边缘
-          const angle = Math.atan2(gy, gx);
-          edgePoints.push({ x, y, grad, angle });
+        if (approx.rows === 4) {
+          documentContour = approx;
+          break;
         }
+        approx.delete();
       }
-    }
-    
-    // 如果检测到足够多的边缘点，尝试找到文档边界
-    if (edgePoints.length > 50) {
-      // 按梯度值排序，保留强边缘点
-      edgePoints.sort((a, b) => b.grad - a.grad);
-      const strongEdges = edgePoints.slice(0, Math.min(edgePoints.length, 500));
       
-      // 使用RANSAC算法找到四边形
-      const quadrilateral = findQuadrilateral(strongEdges, width, height);
-      
-      if (quadrilateral) {
-        // 更新文档边界
-        documentBounds.value = quadrilateral;
-      } else {
-        // 如果RANSAC失败，回退到简单的边界框方法
-        findBoundingBox(edgePoints, width, height);
+      // 如果找到四边形，更新文档边界
+      if (documentContour) {
+        const points = [];
+        for (let i = 0; i < 4; i++) {
+          points.push({
+            x: documentContour.data32S[i * 2],
+            y: documentContour.data32S[i * 2 + 1]
+          });
+        }
+        
+        // 按左上、右上、右下、左下的顺序排序点
+        points.sort((a, b) => {
+          if (a.y !== b.y) return a.y - b.y;
+          return a.x - b.x;
+        });
+        
+        const [topLeft, topRight, bottomRight, bottomLeft] = points;
+        
+        documentBounds.value = {
+          topLeft,
+          topRight,
+          bottomRight,
+          bottomLeft
+        };
+        
+        documentContour.delete();
       }
-    }
-  };
-
-  // 使用RANSAC算法找到四边形
-  const findQuadrilateral = (points, width, height) => {
-    if (points.length < 20) return null;
-    
-    // 分析点的分布，找到可能的四个角点区域
-    const xValues = points.map(p => p.x);
-    const yValues = points.map(p => p.y);
-    
-    // 计算点的分布
-    const xMean = xValues.reduce((sum, x) => sum + x, 0) / points.length;
-    const yMean = yValues.reduce((sum, y) => sum + y, 0) / points.length;
-    
-    // 将点分为四个象限
-    const topLeft = [];
-    const topRight = [];
-    const bottomLeft = [];
-    const bottomRight = [];
-    
-    for (const point of points) {
-      if (point.x < xMean && point.y < yMean) {
-        topLeft.push(point);
-      } else if (point.x >= xMean && point.y < yMean) {
-        topRight.push(point);
-      } else if (point.x < xMean && point.y >= yMean) {
-        bottomLeft.push(point);
-      } else {
-        bottomRight.push(point);
-      }
-    }
-    
-    // 确保每个象限有足够的点
-    if (topLeft.length < 5 || topRight.length < 5 || 
-        bottomLeft.length < 5 || bottomRight.length < 5) {
-      return null;
-    }
-    
-    // 找到每个象限的中心点
-    const findCentroid = (points) => {
-      const n = points.length;
-      const x = points.reduce((sum, p) => sum + p.x, 0) / n;
-      const y = points.reduce((sum, p) => sum + p.y, 0) / n;
-      return { x, y };
-    };
-    
-    // 找到每个象限的最外点
-    const findCorner = (points, xDir, yDir) => {
-      return points.reduce((best, point) => {
-        const score = xDir * point.x + yDir * point.y;
-        return score > best.score ? { x: point.x, y: point.y, score } : best;
-      }, { x: xDir > 0 ? 0 : width, y: yDir > 0 ? 0 : height, score: -Infinity });
-    };
-    
-    // 找到四个角点
-    const tl = findCorner(topLeft, -1, -1);
-    const tr = findCorner(topRight, 1, -1);
-    const bl = findCorner(bottomLeft, -1, 1);
-    const br = findCorner(bottomRight, 1, 1);
-    
-    return {
-      topLeft: { x: tl.x, y: tl.y },
-      topRight: { x: tr.x, y: tr.y },
-      bottomLeft: { x: bl.x, y: bl.y },
-      bottomRight: { x: br.x, y: br.y }
-    };
-  };
-
-  // 回退方法：找到边界框
-  const findBoundingBox = (points, width, height) => {
-    // 找到边缘点的边界
-    let minX = width, minY = height, maxX = 0, maxY = 0;
-    
-    for (const point of points) {
-      minX = Math.min(minX, point.x);
-      minY = Math.min(minY, point.y);
-      maxX = Math.max(maxX, point.x);
-      maxY = Math.max(maxY, point.y);
-    }
-    
-    // 确保边界有一定大小
-    if (maxX - minX > width * 0.2 && maxY - minY > height * 0.2) {
-      // 找到四个角点
-      const topLeft = { x: minX, y: minY };
-      const topRight = { x: maxX, y: minY };
-      const bottomLeft = { x: minX, y: maxY };
-      const bottomRight = { x: maxX, y: maxY };
       
-      // 更新文档边界
-      documentBounds.value = {
-        topLeft,
-        topRight,
-        bottomLeft,
-        bottomRight
-      };
+      // 释放内存
+      src.delete();
+      gray.delete();
+      edges.delete();
+      contours.delete();
+      hierarchy.delete();
+      kernel.delete();
+      
+    } catch (error) {
+      console.error('文档检测失败:', error);
     }
   };
 
@@ -321,17 +298,47 @@ export function useDocumentDetection() {
     const bounds = documentBounds.value;
     
     // 计算裁剪区域
-    const cropX = Math.max(0, bounds.topLeft.x);
-    const cropY = Math.max(0, bounds.topLeft.y);
-    const cropWidth = Math.min(video.videoWidth - cropX, bounds.topRight.x - bounds.topLeft.x);
-    const cropHeight = Math.min(video.videoHeight - cropY, bounds.bottomLeft.y - bounds.topLeft.y);
+    const cropX = Math.min(bounds.topLeft.x, bounds.bottomLeft.x);
+    const cropY = Math.min(bounds.topLeft.y, bounds.topRight.y);
+    const cropWidth = Math.max(
+      Math.abs(bounds.topRight.x - bounds.topLeft.x),
+      Math.abs(bounds.bottomRight.x - bounds.bottomLeft.x)
+    );
+    const cropHeight = Math.max(
+      Math.abs(bounds.bottomLeft.y - bounds.topLeft.y),
+      Math.abs(bounds.bottomRight.y - bounds.topRight.y)
+    );
+    
+    // 确保裁剪区域在视频范围内
+    const finalCropX = Math.max(0, Math.min(cropX, video.videoWidth - 1));
+    const finalCropY = Math.max(0, Math.min(cropY, video.videoHeight - 1));
+    const finalCropWidth = Math.min(cropWidth, video.videoWidth - finalCropX);
+    const finalCropHeight = Math.min(cropHeight, video.videoHeight - finalCropY);
     
     // 确保裁剪区域有效
-    if (cropWidth <= 0 || cropHeight <= 0) {
+    if (finalCropWidth <= 0 || finalCropHeight <= 0) {
+      console.warn('裁剪区域无效:', {
+        x: finalCropX,
+        y: finalCropY,
+        width: finalCropWidth,
+        height: finalCropHeight,
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight
+      });
       return null;
     }
     
-    return { cropX, cropY, cropWidth, cropHeight };
+    console.log('计算裁剪区域:', {
+      original: { cropX, cropY, cropWidth, cropHeight },
+      final: { finalCropX, finalCropY, finalCropWidth, finalCropHeight }
+    });
+    
+    return {
+      cropX: finalCropX,
+      cropY: finalCropY,
+      cropWidth: finalCropWidth,
+      cropHeight: finalCropHeight
+    };
   };
 
   // 组件卸载时自动停止检测
@@ -343,6 +350,7 @@ export function useDocumentDetection() {
     canvasRef,
     documentBounds,
     isAutoDetectEnabled,
+    isOpenCVReady,
     loadSettings,
     saveSettings,
     clearCanvas,
